@@ -1,9 +1,12 @@
 helpFunction()
 {
    echo ""
-   echo "Creating release branches release//{release_number} and tag release_number in maven or react project"
+   echo "Creating release branch release//{release_number} and tag release_number in maven or react project from develop branch"
    echo ""
    echo "Usage: $0 release_number"
+   echo "   example:"
+   echo "   create_release.sh 2.0.48"
+   echo ""
    exit 1 # Exit script after printing help
 }
 
@@ -40,8 +43,9 @@ if [ -f "pom.xml" ]; then
 	mvn versions:set -DnewVersion=$1 -DgenerateBackupPoms=false
 	mvn dependency:tree > maven-dependency-tree.txt
 elif  [ -f "package.json" ]; then
-	# set reease number for front React project
+	# set release number for front React project
 	echo "File package.json found."
+	# use NGU sed
 	gsed -i '0,/\"version\": \"[^\"]*\"/s//\"version\": \"'$1'\"/' package.json 
 else
      echo "File pom.xml or package.json not found."

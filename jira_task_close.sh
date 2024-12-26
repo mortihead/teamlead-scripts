@@ -1,4 +1,3 @@
-JIRA_REST='https://jira.ibs.ru/rest/api/2/issue'
 TASKS_FILE=$2
  
 
@@ -8,8 +7,18 @@ helpFunction()
    echo "Close for Jira tasks"
    echo ""
    echo "Usage: $0 tasks.txt"
+   echo "   tasks.txt - an optional parameter, the name of the file that contains lines with task names from Jira. "
+   echo "               This can be the result of the git log command - in this case, the script parses the lines in the file and finds the Jira task numbers."
+   echo "               If the parameter is not specified, the script looks for the file tasks.txt."
+   echo ""
    exit 1 # Exit script after printing help
 }
+
+# Проверка переменных
+if [[ -z "$JIRA_LOGIN" || -z "$JIRA_PASSWORD" || -z "$JIRA_REST" ]]; then
+    echo "The variables JIRA_LOGIN, JIRA_PASSWORD, and JIRA_REST must be defined in the ~/.zprofile (MacOS) or ~/.bashrc (Linux)."
+    helpFunction
+fi
 
 if [ -z "$TASKS_FILE" ]; then
    TASKS_FILE='tasks.txt' 
@@ -19,6 +28,8 @@ else
 fi 
 
 
+echo "Jira login: '${JIRA_LOGIN}'"
+echo "Jira REST : ${JIRA_REST}"
 echo "Tasks file: ${TASKS_FILE}"
 
 # Transition id for Close status is unique for every project
@@ -73,4 +84,4 @@ cat ./$TASKS_FILE | grep -Eo '[A-Z][A-Z0-9]+-[0-9]+' | while read line; do
 
 done
 
-echo "Update tasks copmlete!"
+echo "Update tasks complete!"
