@@ -85,11 +85,13 @@ cat ./$TASKS_FILE | grep -Eo '[A-Z][A-Z0-9]+-[0-9]+' | while read line; do
 	  elif  [ $curl_status -eq 204 ]; then
 	    echo "OK"
 	  elif  [ $curl_status -eq 400 ]; then
-	    echo "Got $STATUS. Bad request. Check new release '${FIX_VERSION}' was added in JIRA releases page!"
+	    echo "Got ${curl_status}. Bad request. Check new release '${FIX_VERSION}' was added in JIRA releases page!"
 	    exit 1
 	  else
-	    echo "Got $STATUS :( Not done yet..."
-	    exit 1
+	    echo "Got ${curl_status}. Wrong task ${line}?"
+	    echo "Press ENTER to continue or Ctrl+C to abort..."
+            # Читаем 1 символ из /dev/tty (игнорируем вывод)
+            dd if=/dev/tty bs=1 count=1 2>/dev/null
 	  fi
 done
 
