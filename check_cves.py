@@ -58,6 +58,11 @@ def main():
             if 'VulnerabilityID' not in reader.fieldnames:
                 print('Ошибка: колонка VulnerabilityID не найдена в CSV')
                 sys.exit(1)
+
+                    # ANSI коды для цветов
+            RED = '\033[91m'
+            GREEN = '\033[92m'
+            RESET = '\033[0m'
             
             print("\nПроверка CVE в документе:")
             print("-" * 60)
@@ -67,11 +72,15 @@ def main():
             print(f"{'№':<5} | {'VulnerabilityID':<20} | {'Статус':<12}")
             print("-" * 60)
             
+
             for index, row in enumerate(reader, 1):
                 cve = row['VulnerabilityID'].strip('"')
                 found = search_in_docx(docx_file, cve)
-                status = "Найдено" if found else "Не найдено"
-                print(f"{index:<5} | {cve:<20} | {status:<12}")
+                if found:
+                   status = f"{GREEN}Найдено{RESET}"
+                else:
+                   status = f"{RED}Не найдено{RESET}"
+                print(f"{index:<5} | {cve:<20} | {status:<{12 + len(RED) + len(RESET)}}")
                 
     except Exception as e:
         print(f'\nОшибка: {str(e)}', file=sys.stderr)
