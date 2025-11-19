@@ -15,8 +15,8 @@ helpFunction()
 }
 
 # Проверка переменных
-if [[ -z "$JIRA_LOGIN" || -z "$JIRA_PASSWORD" || -z "$JIRA_REST" ]]; then
-    echo "The variables JIRA_LOGIN, JIRA_PASSWORD, and JIRA_REST must be defined in the ~/.zprofile (MacOS) or ~/.bashrc (Linux)."
+if [[ -z "$JIRA_LOGIN"  || -z "$JIRA_REST" ]]; then
+    echo "The variables JIRA_LOGIN and JIRA_REST must be defined in the ~/.zprofile (MacOS) or ~/.bashrc (Linux)."
     helpFunction
 fi
 
@@ -56,9 +56,10 @@ cat ./$TASKS_FILE | grep -Eo '[A-Z][A-Z0-9]+-[0-9]+' | while read line; do
  echo "Check correct close transitions id in url: "$JIRA_REST/$line/transitions?expand=transitions.fields
  # echo $CURL_DATA
  curl_status=$( \
-	 curl -D- --user $JIRA_LOGIN:$JIRA_PASSWORD --request POST \
+	 curl -D-  --request POST \
 	     --url $JIRA_REST'/'$line'/transitions' \
 	     --header 'Content-Type: application/json; charset=utf-8' \
+     	     --header "Authorization: Bearer $JIRA_TOKEN" \
 	     --data "$CURL_DATA" \
              -s -o /dev/null --write-out '%{http_code}'  | grep -i 'HTTP/1.1 ' | awk '{print $2}'| sed -e 's/^[ \t]*//' );
 

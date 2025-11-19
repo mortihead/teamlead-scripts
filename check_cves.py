@@ -1,43 +1,13 @@
 #!/usr/bin/env python3
 
-"""
-Проверка наличия уязвимостей (CVE-*, CSPW-*) в DOCX файле на основе их списка из CSV.
-
-Требуемые зависимости:
-
-=== Для всех ОС ===
-1. Python 3.x
-2. PyPDF2 (если pdftotext недоступен):
-   pip install PyPDF2
-
-=== Linux (Ubuntu/Debian) ===
-1. pdftotext (рекомендуется):
-   sudo apt install poppler-utils
-2. Для DOCX (если textutil недоступен):
-   sudo apt install python3-python-docx
-
-=== macOS === 
-1. pdftotext (рекомендуется):
-   brew install poppler
-2. textutil (встроен в систему)
-
-=== Windows ===
-1. pdftotext (рекомендуется):
-   - Скачать poppler для Windows: https://github.com/oschwartz10612/poppler-windows/releases/
-   - Добавить папку с pdftotext.exe в PATH
-2. Для DOCX установите:
-   pip install python-docx
-"""
-
-
 import csv
 import subprocess
 import sys
 import os
 import tempfile
 import shlex
+import re
 
-# Конфигурация по умолчанию
 DEFAULT_DOCX_ENV = 'SCA_DOCX'
 
 def search_in_docx(docx_path, text):
@@ -55,8 +25,41 @@ def search_in_docx(docx_path, text):
         print(f"Ошибка при обработке DOCX: {str(e)}", file=sys.stderr)
         return False
 
+def extract_cvss_score(row):
+    """Извлекает CVSS score из строки CSV, обрабатывая разные форматы"""
+    # Сначала пробуем CVSSv3
+    cvss_field = row.get('CVSSv3', '') or row.get('CVSSv3 Score', '') or row.get('CVSSv3_Score', '')
+    if not cvss_field:
+        # Если CVSSv3 нет, пробуем CVSSv2
+        cvss_field = row.get('CVSSv2', '') or row.get('CVSSv2 Score', '') or row.get('CVSSv2_Score', '')
+    
+    # Очищаем строку от кавычек и лишних символов
+    cvss_field = str(cvss_field).strip('"\' ')
+    
+    # Пытаемся извлечь числовое значение
+    match = re.search(r'(\d+\.\d+)', cvss_field)
+    if match:
+        return float(match.group(1))
+    try:
+        return float(cvss_field)
+    except (ValueError, TypeError):
+        return None
+
+def get_severity_level(score):
+    """Определяет уровень критичности на основе CVSS score"""
+    if score is None:
+        return "N/A"
+    if score >= 9.0:
+        return "Critical"
+    elif score >= 7.0:
+        return "High"
+    elif score >= 4.0:
+        return "Medium"
+    elif score > 0:
+        return "Low"
+    return "None"
+
 def main():
-    # Получаем пути к файлам
     if len(sys.argv) < 2:
         print(f"Использование: {sys.argv[0]} <csv_file> [docx_file]")
         print(f"Или установите переменную окружения {DEFAULT_DOCX_ENV}")
@@ -64,7 +67,6 @@ def main():
     
     csv_file = sys.argv[1]
     
-    # Определяем DOCX файл
     if len(sys.argv) >= 3:
         docx_file = sys.argv[2]
     elif DEFAULT_DOCX_ENV in os.environ:
@@ -73,7 +75,6 @@ def main():
         print(f"Ошибка: не указан DOCX файл и отсутствует переменная {DEFAULT_DOCX_ENV}")
         sys.exit(1)
 
-    # Проверяем существование файлов
     if not os.path.exists(csv_file):
         print(f"Ошибка: CSV файл не найден: {csv_file}")
         sys.exit(1)
@@ -84,33 +85,66 @@ def main():
 
     try:
         with open(csv_file, newline='', encoding='utf-8') as f:
-            reader = csv.DictReader(f, delimiter=';')
+            # Автоопределение разделителя
+            dialect = csv.Sniffer().sniff(f.read(1024))
+            f.seek(0)
+            reader = csv.DictReader(f, delimiter=dialect.delimiter)
+            
             if 'VulnerabilityID' not in reader.fieldnames:
                 print('Ошибка: колонка VulnerabilityID не найдена в CSV')
                 sys.exit(1)
 
-                    # ANSI коды для цветов
+            # Цвета
             RED = '\033[91m'
             GREEN = '\033[92m'
+            YELLOW = '\033[93m'
+            BLUE = '\033[94m'
             RESET = '\033[0m'
             
+            # Заголовок таблицы
             print("\nПроверка CVE в документе:")
-            print("-" * 60)
+            print("-" * 85)
             print(f"DOCX файл: {docx_file}")
             print(f"CSV файл: {csv_file}")
-            print("-" * 60)
-            print(f"{'№':<5} | {'VulnerabilityID':<20} | {'Статус':<12}")
-            print("-" * 60)
+            print("-" * 85)
+            print(f"{'№':<5} | {'VulnerabilityID':<20} | {'Статус':<12} | {'Уровень':<29} | {'CVSS':<6}")
+            print("-" * 85)
             
-
             for index, row in enumerate(reader, 1):
-                cve = row['VulnerabilityID'].strip('"')
+                cve = str(row['VulnerabilityID']).strip('"\' ')
                 found = search_in_docx(docx_file, cve)
+                
+                # Получаем CVSS score
+                cvss_score = extract_cvss_score(row)
+                severity = get_severity_level(cvss_score)
+                
+                # Форматируем статус
                 if found:
-                   status = f"{GREEN}Найдено{RESET}"
+                    status = f"{GREEN}Найдено{RESET}"
+                    severity_display = "-"
+                    cvss_display = "  -"  # Два пробела для выравнивания
                 else:
-                   status = f"{RED}Не найдено{RESET}"
-                print(f"{index:<5} | {cve:<20} | {status:<{12 + len(RED) + len(RESET)}}")
+                    status = f"{RED}Не найдено{RESET}"
+                    # Форматируем уровень
+                    if severity == "Critical":
+                        severity_display = f"{RED}{severity}{RESET}"
+                    elif severity == "High":
+                        severity_display = f"{YELLOW}{severity}{RESET}"
+                    elif severity == "Medium":
+                        severity_display = f"{BLUE}{severity}{RESET}"
+                    else:
+                        severity_display = severity
+                    
+                    # Форматируем CVSS score
+                    if cvss_score is not None:
+                        cvss_display = f"{cvss_score:.1f}".rjust(4)  # Выравнивание по правому краю (4 символа)
+                    else:
+                        cvss_display = "N/A".rjust(4)
+                
+                # Вывод строки с правильным выравниванием
+                print(f"{index:<5} | {cve:<20} | {status:<{12 + len(RED) + len(RESET)}} | "
+                      f"{severity_display:<{10 + len(RED) + len(YELLOW) + len(BLUE) + len(RESET)}} | "
+                      f"{cvss_display:>6}")  # Выравнивание по правому краю для CVSS
                 
     except Exception as e:
         print(f'\nОшибка: {str(e)}', file=sys.stderr)

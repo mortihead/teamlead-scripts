@@ -1,5 +1,10 @@
 import java.util.Base64;
 import java.nio.charset.StandardCharsets;
+import java.util.Date;
+import java.text.SimpleDateFormat;
+import java.util.TimeZone;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class JwtDecoderCli {
 
@@ -26,7 +31,8 @@ public class JwtDecoderCli {
             System.out.println(formatJson(headerJson) + "\n");
 
             System.out.println("=== Payload (Данные) ===");
-            System.out.println(formatJson(payloadJson));
+            String formattedPayload = formatJsonWithTimestamps(payloadJson);
+            System.out.println(formattedPayload);
 
         } catch (Exception e) {
             System.err.println("Ошибка декодирования: " + e.getMessage());
@@ -44,13 +50,46 @@ public class JwtDecoderCli {
         return new String(decodedBytes, StandardCharsets.UTF_8);
     }
 
+    private static String formatJsonWithTimestamps(String json) {
+        // Сначала преобразуем временные метки
+        String jsonWithTimestamps = convertTimestampsToHumanReadable(json);
+        
+        // Затем форматируем как JSON (оригинальный метод)
+        return formatJson(jsonWithTimestamps);
+    }
+
+    private static String convertTimestampsToHumanReadable(String json) {
+        // Паттерн для поиска полей "exp" и "iat" с числовыми значениями
+        Pattern pattern = Pattern.compile("\"(exp|iat)\":\\s*(\\d+)");
+        Matcher matcher = pattern.matcher(json);
+        
+        StringBuffer result = new StringBuffer();
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH-mm-ss z");
+        sdf.setTimeZone(TimeZone.getTimeZone("UTC"));
+        
+        while (matcher.find()) {
+            String fieldName = matcher.group(1);
+            long timestamp = Long.parseLong(matcher.group(2)) * 1000; // Convert to milliseconds
+            Date date = new Date(timestamp);
+            String humanReadable = sdf.format(date);
+            
+            // Добавляем комментарий с человеко-читаемым временем
+            String replacement = String.format("\"%s\": %d, // %s", 
+                fieldName, Long.parseLong(matcher.group(2)), humanReadable);
+            matcher.appendReplacement(result, replacement);
+        }
+        matcher.appendTail(result);
+        
+        return result.toString();
+    }
+
     private static String formatJson(String json) {
         StringBuilder result = new StringBuilder();
         int indentLevel = 0;
         boolean inQuotes = false;
 
         for (char c : json.toCharArray()) {
-            if (c == '"' && (json.length() > 1 && json.charAt(json.indexOf(c) - 1) != '\\')) {
+            if (c == '"' && (result.length() == 0 || result.charAt(result.length() - 1) != '\\')) {
                 inQuotes = !inQuotes;
             }
 

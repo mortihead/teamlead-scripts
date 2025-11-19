@@ -5,9 +5,10 @@ helpFunction()
    echo "    tag 2.0.4   -> 2.0.4.1"
    echo "    tag 2.0.4.1 -> 2.0.4.2"
    echo ""
+   echo "For react projects with \$MINOR_VERSION_SUFFIX variables"
+   echo "    tag 2.0.51.10-ibm -> 2.0.51.11-ibm"
+   echo ""
    echo "Usage: $0 release_number"
-
-   echo "Usage: $0 tag release_number"
    exit 1 # Exit script after printing help
 }
 
@@ -61,7 +62,22 @@ elif [ "$ver_count" -eq 4 ]; then
   echo "Minor version tag found: '$ver_tag'"
   minor=${TAG[3]}
   echo "Minor: $minor"
-  let "minor+=1"
+
+  # Проверяем, есть ли в minor дефис (префикс)
+  if [[ $minor == *"-"* ]]; then
+    echo "Found prefix in minor version"
+    # Разделяем по дефису
+    IFS='-' read -ra MINOR_PARTS <<< "$minor"
+    prefix_part=${MINOR_PARTS[1]}
+    number_part=${MINOR_PARTS[0]}
+    echo "Number: $number_part, Prefix: $prefix_part"
+    let "number_part+=1"
+    minor="$number_part"
+  else
+    # Обычная числовая версия
+    let "minor+=1"
+  fi
+
   # Собираем новый тег
   ver_tag="${TAG[0]}.${TAG[1]}.${TAG[2]}.$minor"
   echo "New version tag: '$ver_tag'"
@@ -80,7 +96,14 @@ if [ -f "pom.xml" ]; then
 elif  [ -f "package.json" ]; then
 	# set reease number for front React project
 	echo "File package.json found."
+
 	gsed -i '0,/\"version\": \"[^\"]*\"/s//\"version\": \"'$ver_tag'\"/' package.json 
+
+	if [ -n "$MINOR_VERSION_SUFFIX" ]; then
+    		ver_tag="${TAG[0]}.${TAG[1]}.${TAG[2]}.$minor-$MINOR_VERSION_SUFFIX"
+                echo "New version tag with suffix: '$ver_tag'"
+        fi
+
 	git add -A && git commit -m "Set version $ver_tag"
 else
      echo "File pom.xml or package.json not found."

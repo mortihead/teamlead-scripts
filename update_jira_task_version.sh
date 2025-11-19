@@ -1,6 +1,7 @@
 FIX_VERSION=$1
 TASKS_FILE=$2
- 
+BRIGHT_WHITE='\033[1;37m'
+NC='\033[0m' # No Color 
 
 helpFunction()
 {
@@ -23,8 +24,8 @@ if [ -z "$FIX_VERSION" ]; then
 fi
 
 # Проверка переменных
-if [[ -z "$JIRA_LOGIN" || -z "$JIRA_PASSWORD" || -z "$JIRA_REST" ]]; then
-    echo "The variables JIRA_LOGIN, JIRA_PASSWORD, and JIRA_REST must be defined in the ~/.zprofile (MacOS) or ~/.bashrc (Linux)."
+if [[ -z "$JIRA_TOKEN" ||  -z "$JIRA_REST" ]]; then
+    echo "The variables JIRA_TOKEN, and JIRA_REST must be defined in the ~/.zprofile (MacOS) or ~/.bashrc (Linux)."
     helpFunction
 fi
 
@@ -36,7 +37,6 @@ else
 fi 
 
 
-echo "Jira login : '${JIRA_LOGIN}'"
 echo "Jira REST  : ${JIRA_REST}"
 echo "fixVersions: ${FIX_VERSION}"
 echo "Tasks file : ${TASKS_FILE}"
@@ -59,15 +59,16 @@ echo "Temp file  : ${tempFile}"
 echo "" > $tempFile
 
 cat ./$TASKS_FILE | grep -Eo '[A-Z][A-Z0-9]+-[0-9]+' | while read line; do
-	 echo $line
+	 echo "${BRIGHT_WHITE}${line}${NC}"
 	 echo $line >> $tempFile
 
 	 echo $CURL_DATA
 
 	 curl_status=$( \
-	 curl -D- --user $JIRA_LOGIN:$JIRA_PASSWORD --request PUT \
+	 curl -D- --request PUT \
 	     --url $JIRA_REST'/'$line'' \
 	     --header 'Content-Type: application/json; charset=utf-8' \
+	     --header "Authorization: Bearer $JIRA_TOKEN" \
 	     --data "$CURL_DATA"  \
 	     -s -o /dev/null --write-out '%{http_code}'  | grep -i 'HTTP/1.1 ' | awk '{print $2}'| sed -e 's/^[ \t]*//' \
 	     );
@@ -88,11 +89,18 @@ cat ./$TASKS_FILE | grep -Eo '[A-Z][A-Z0-9]+-[0-9]+' | while read line; do
 	    echo "Got ${curl_status}. Bad request. Check new release '${FIX_VERSION}' was added in JIRA releases page!"
 	    exit 1
 	  else
-	    echo "Got ${curl_status}. Wrong task ${line}?"
-	    echo "Press ENTER to continue or Ctrl+C to abort..."
-            # Читаем 1 символ из /dev/tty (игнорируем вывод)
-            dd if=/dev/tty bs=1 count=1 2>/dev/null
-	  fi
+		# Проверяем, содержит ли $line CWE или CVE
+		    if [[ "$line" =~ ^(CWE|CVE) ]]; then
+		        # Зеленый цвет для уязвимостей - пропускаем остановку
+		        echo "\033[32mGot ${curl_status}. Security task ${line} - continuing...\033[0m"
+		    else
+		        # Красный цвет для других ошибок - останавливаемся
+		        echo "\033[31mGot ${curl_status}. Wrong task ${line}?\033[0m"
+		        echo "\033[33mPress ENTER to continue or Ctrl+C to abort...\033[0m"
+		        # Читаем 1 символ из /dev/tty (игнорируем вывод)
+		        dd if=/dev/tty bs=1 count=1 2>/dev/null
+		    fi
+    	  fi
 done
 
 
