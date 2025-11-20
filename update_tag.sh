@@ -9,6 +9,8 @@ helpFunction()
    echo "    tag 2.0.51.10-ibm -> 2.0.51.11-ibm"
    echo ""
    echo "Usage: $0 release_number"
+   echo ""
+   echo "Required: gsed, git, mvn, java"
    exit 1 # Exit script after printing help
 }
 
