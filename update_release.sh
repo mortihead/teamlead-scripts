@@ -6,6 +6,8 @@ helpFunction()
    echo "    tag 2.0.4.1 -> 2.0.4.2"
    echo ""
    echo "Usage: $0 release_number"
+   echo ""
+   echo "Required: gsed, jq, git, mvn, java"
    exit 1 # Exit script after printing help
 }
 
@@ -17,6 +19,8 @@ fi
 
 release=$1
 echo "Release: $release"
+echo "\$MINOR_VERSION_SUFFIX: $MINOR_VERSION_SUFFIX"
+
 
 git status
 git checkout develop
@@ -67,7 +71,22 @@ elif [ "$ver_count" -eq 4 ]; then
   echo "Minor version tag found: '$ver_tag'"
   minor=${TAG[3]}
   echo "Minor: $minor"
-  let "minor+=1"
+
+  # Проверяем, есть ли в minor дефис (префикс)
+  if [[ $minor == *"-"* ]]; then
+    echo "Found prefix in minor version"
+    # Разделяем по дефису
+    IFS='-' read -ra MINOR_PARTS <<< "$minor"
+    prefix_part=${MINOR_PARTS[1]}
+    number_part=${MINOR_PARTS[0]}
+    echo "Number: $number_part, Prefix: $prefix_part"
+    let "number_part+=1"
+    minor="$number_part"
+  else
+    # Обычная числовая версия
+    let "minor+=1"
+  fi
+
   # Собираем новый тег
   ver_tag="${TAG[0]}.${TAG[1]}.${TAG[2]}.$minor"
   echo "New version tag: '$ver_tag'"
@@ -83,14 +102,25 @@ git merge develop --strategy-option theirs
 if [ -f "pom.xml" ]; then
 	# set reease number for java maven project
 	echo "File pom.xml found."
-	mvn dependency:tree > maven-dependency-tree.txt  
+	mvn dependency:tree -DoutputFile=maven-dependency-tree.txt
 	mvn versions:set -DnewVersion=$ver_tag -DgenerateBackupPoms=false
 	git add -A && git commit -m "Add maven-dependency-tree.txt file; Set version $ver_tag"
-
 elif  [ -f "package.json" ]; then
 	# set reease number for front React project
 	echo "File package.json found."
+
 	gsed -i '0,/\"version\": \"[^\"]*\"/s//\"version\": \"'$ver_tag'\"/' package.json 
+
+	if [ -n "$MINOR_VERSION_SUFFIX" ]; then
+    		ver_tag="${TAG[0]}.${TAG[1]}.${TAG[2]}.$minor-$MINOR_VERSION_SUFFIX"
+                echo "New version tag with suffix: '$ver_tag'"
+        fi
+
+        # кастомные действия 
+        # Удаление папки .yarn и упоминания packageManager в package.json
+        jq 'del(.packageManager)' package.json > tmp.json && mv tmp.json package.json
+        rm -rf .yarn
+
 	git add -A && git commit -m "Set version $ver_tag"
 else
      echo "File pom.xml or package.json not found."
@@ -99,6 +129,5 @@ fi
 
 
 git tag -a $ver_tag -m "Set tag $ver_tag" && git push origin --tags && git push
-git checkout develop
+#git checkout develop
 git branch --show-current
-

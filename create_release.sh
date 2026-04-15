@@ -41,11 +41,11 @@ if [ -f "pom.xml" ]; then
 	# set reease number for java maven project
 	echo "File pom.xml found."
 	mvn versions:set -DnewVersion=$1 -DgenerateBackupPoms=false
-	mvn dependency:tree > maven-dependency-tree.txt
+	mvn dependency:tree -DoutputFile=maven-dependency-tree.txt
 elif  [ -f "package.json" ]; then
 	# set release number for front React project
 	echo "File package.json found."
-	# use NGU sed
+	# use GNU sed
 	gsed -i '0,/\"version\": \"[^\"]*\"/s//\"version\": \"'$1'\"/' package.json 
 else
      echo "File pom.xml or package.json not found."

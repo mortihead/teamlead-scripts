@@ -8,6 +8,7 @@ helpFunction()
    echo "For react projects with \$MINOR_VERSION_SUFFIX variables"
    echo "    tag 2.0.51.10-ibm -> 2.0.51.11-ibm"
    echo ""
+   echo "\$MINOR_VERSION_SUFFIX: $MINOR_VERSION_SUFFIX"
    echo "Usage: $0 release_number"
    echo ""
    echo "Required: gsed, git, mvn, java"
@@ -91,7 +92,8 @@ fi
 if [ -f "pom.xml" ]; then
 	# set reease number for java maven project
 	echo "File pom.xml found."
-	mvn dependency:tree > maven-dependency-tree.txt  
+	mvn dependency:tree -DoutputFile=maven-dependency-tree.txt
+
 	mvn versions:set -DnewVersion=$ver_tag -DgenerateBackupPoms=false
 	git add -A && git commit -m "Add maven-dependency-tree.txt file; Set version $ver_tag"
 
